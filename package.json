@@ -1,0 +1,32 @@
+{
+  "name": "rethink-analytics",
+  "version": "0.0.1",
+  "description": "Open-source event analytics using RethinkDB",
+  "scripts": {
+    "test": "mocha tests/**/*.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/flowcards/analytics.git"
+  },
+  "keywords": [
+    "rethinkdb",
+    "analytics",
+    "events"
+  ],
+  "author": "luiz-pv9",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/flowcards/analytics/issues"
+  },
+  "homepage": "https://github.com/flowcards/analytics#readme",
+  "devDependencies": {
+    "mocha": "2.2.5",
+    "chai": "3.0.0"
+  },
+  "dependencies": {
+    "rethinkdb": "2.0.2",
+    "generic-pool": "2.2.0",
+    "underscore": "1.8.3"
+  }
+}
