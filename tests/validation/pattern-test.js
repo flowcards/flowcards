@@ -129,6 +129,19 @@ describe('validation/Pattern tests', function() {
       assert.isFalse(datePattern.matches({'time': after}));
     });
 
+    it('matches against object type', function() {
+      let objectPattern = new Pattern({
+        'properties': {
+          type: 'object'
+        }
+      });
+      assert.isTrue(objectPattern.matches({'properties': {}}));
+      assert.isTrue(objectPattern.matches({'properties': {
+        'name': 'Foo'
+      }}));
+      assert.isFalse(objectPattern.matches({'properties': []}));
+    });
+
     it('matches against number min/max values using a function', function() {
       let numberPattern = new Pattern({
         'age': {
@@ -144,7 +157,7 @@ describe('validation/Pattern tests', function() {
       assert.isFalse(numberPattern.matches({'age': 4}));
     });
 
-    it('matches against date min/ax values using a function', function() {
+    it('matches against date min/max values using a function', function() {
       let before = new Date(2015, 6, 10);
       let current = new Date(2015, 6, 11);
       let after = new Date(2015, 6, 12);
@@ -270,6 +283,19 @@ describe('validation/Pattern tests', function() {
       assert.isTrue(pattern.matches({age: 10}));
       assert.isFalse(pattern.matches({age: 'Qux'}));
     });
+
+    it('matches against multiple types when an array is specified', function() {
+      let multiplePattern = new Pattern({
+        'value': [
+          {type: 'string'},
+          {type: 'number'}
+        ]
+      });
+
+      assert.isTrue(multiplePattern.matches({value: 'Pixel'}));
+      assert.isTrue(multiplePattern.matches({value: 10.0}));
+      assert.isFalse(multiplePattern.matches({value: true}));
+    });
   });
 
   describe('#test', function() {
@@ -288,6 +314,8 @@ describe('validation/Pattern tests', function() {
       assert.isFalse(res.matched);
       assert.property(res.errors, 'name');
       assert.property(res.errors, 'age');
+      assert.isTrue(res.errors.name instanceof Error);
+      assert.isTrue(res.errors.age instanceof Error);
     });
 
     it('returns error from properties that doesnt have rules', function() {
@@ -299,6 +327,7 @@ describe('validation/Pattern tests', function() {
 
       let res = pattern.test({name: 'Pixel', age: 10});
       assert.property(res.errors, 'age');
+      assert.isTrue(res.errors.age instanceof Error);
     });
 
     it('returns error from required rules that doesnt have values', function() {
@@ -314,6 +343,7 @@ describe('validation/Pattern tests', function() {
 
       let res = pattern.test({name: 'Pixel'});
       assert.property(res.errors, 'age');
+      assert.isTrue(res.errors.age instanceof Error);
     });
   });
 });

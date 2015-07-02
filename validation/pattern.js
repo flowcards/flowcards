@@ -1,5 +1,6 @@
 'use strict';
 let _ = require('underscore');
+let customErrors = require('../errors/custom_errors');
 
 // The pattern class is the validation library used in this software. It is
 // used to match against known and unknown unstrucuters.
@@ -49,7 +50,7 @@ class Pattern {
       let key = keys[i];
       let rule = this.ruleForKey(key);
       if(!rule) {
-        res.errors[key] = Pattern.errors.invalidKey(key);
+        res.errors[key] = new Pattern.errors.InvalidKeyError(key);
         continue;
       }
       let result = this.matchValue(rule, obj[key]);
@@ -63,7 +64,7 @@ class Pattern {
     var diff = _.difference(this.requiredRules, requiredMatched);
     if(diff.length > 0) {
       _.each(diff, function(key) {
-        res.errors[key] = Pattern.errors.requiredNotMatched(key);
+        res.errors[key] = new Pattern.errors.RequiredNotMatchedError(key);
       });
     }
     res.matched = _.isEmpty(res.errors);
@@ -81,49 +82,60 @@ class Pattern {
     });
   }
 
-  // Called by `matches`. Returns true if the value complies to the rule found.
+  // Called by `matches`. Returns true if the value complies to the rules found.
   matchValue(rule, value) {
-    let matcher = this.matcherForValue(rule, value);
-    if(!matcher) return false;
-    return matcher(rule, value);
+    let matchers = this.matchersForValue(rule, value);
+    var res;
+    for(var i = 0; i < matchers.length; i++) {
+      res = matchers[i](rule, value);
+      if(res === true) return true;
+    }
+    return res;
   }
 
-  // matchType returns true if the value is the same type specified in the
-  // rule. Called by matchValue.
-  matcherForValue(rule, value) {
-    return Pattern.matchers[rule.type];
+  // Rule can either an object describing the value or an array of objects
+  // describing the value. If it is an array, if one of the pattern matches
+  // for the value, the value is considered valid (like an "or" expression)
+  matchersForValue(rule, value) {
+    if(_.isArray(rule)) {
+      return _.map(rule, function(r) {
+        return Pattern.matchers[r.type];
+      });
+    }
+    return [Pattern.matchers[rule.type]];
   }
 }
 
 // Helper functions to generate errors.
 // An error is just a message string that explains why the validation failed.
 // Those errors are returned from matchers in Pattern.matchers.
-Pattern.errors = {
-  invalidType: function(expected, value) {
+// TODO: Update with customErrors library.
+Pattern.errors = customErrors({
+  InvalidTypeError: function(expected, value) {
     return `Invalid type: expected (${expected}) - value is (${value})`;
   },
-  invalidMinLength: function(minLength, value) {
+  InvalidMinLengthError: function(minLength, value) {
     return `Invalid minimum length: expected (${minLength}) - value is (${value})`;
   },
-  invalidMaxLength: function(maxLength, value) {
+  InvalidMaxLengthError: function(maxLength, value) {
     return `Invalid maximum length: expected (${maxLength}) - value is (${value})`;
   },
-  invalidMinValue: function(min, value) {
+  InvalidMinValueError: function(min, value) {
     return `Invalid minimum value: expected (${min}) - value is (${value})`;
   },
-  invalidMaxValue: function(max, value) {
+  InvalidMaxValueError: function(max, value) {
     return `Invalid maximum value: expected (${max}) - value is (${value})`;
   },
-  invalidRegexp: function(regex, value) {
+  InvalidRegexpError: function(regex, value) {
     return `Invalid regexp: expected (${regex}) - value is (${value})`;
   },
-  invalidKey: function(key) {
+  InvalidKeyError: function(key) {
     return `Invalid key: no rule found for the key (${key})`;
   },
-  requiredNotMatched: function(key) {
+  RequiredNotMatchedError: function(key) {
     return `Required pattern not matched for the key (${key})`;
   }
-};
+});
 
 // Since it's possible to specify a function that returns the expected value as
 // well as the raw value, matcherRuleValue normalizes this by converting to
@@ -145,11 +157,11 @@ Pattern.matchers = {
   // * empty
   string: function(rule, value) {
     if(!_.isString(value))
-      return Pattern.errors.invalidType('string', value);
+      return new Pattern.errors.InvalidTypeError('string', value);
     if(rule.minLength && !(value.length >= matcherRuleValue(rule.minLength)))
-      return Pattern.errors.invalidMinLength(rule.minLength, value);
+      return new Pattern.errors.InvalidMinLengthError(rule.minLength, value);
     if(rule.maxLength && !(value.length <= matcherRuleValue(rule.maxLength)))
-      return Pattern.errors.invalidMaxLength(rule.maxLength, value);
+      return new Pattern.errors.InvalidMaxLengthError(rule.maxLength, value);
     return true;
   },
 
@@ -158,43 +170,49 @@ Pattern.matchers = {
   // * max
   number: function(rule, value) {
     if(!_.isNumber(value))
-      return Pattern.errors.invalidType('number', value);
+      return new Pattern.errors.InvalidTypeError('number', value);
     if(rule.min && !(value >= matcherRuleValue(rule.min)))
-      return Pattern.errors.invalidMinValue(rule.min, value);
+      return new Pattern.errors.InvalidMinValueError(rule.min, value);
     if(rule.max && !(value <= matcherRuleValue(rule.max)))
-      return Pattern.errors.invalidMaxValue(rule.max, value);
+      return new Pattern.errors.InvalidMaxValueError(rule.max, value);
     return true;
   },
 
   boolean: function(rule, value) {
     if(!_.isBoolean(value))
-      return Pattern.errors.invalidType('boolean', value);
+      return new Pattern.errors.InvalidTypeError('boolean', value);
     return true;
   },
 
   date: function(rule, value) {
     if(!_.isDate(value))
-      return Pattern.errors.invalidType('date', value);
+      return new Pattern.errors.InvalidTypeError('date', value);
     if(rule.min && !(value >= matcherRuleValue(rule.min)))
-      return Pattern.errors.invalidMinValue(rule.min, value);
+      return new Pattern.errors.InvalidMinValueError(rule.min, value);
     if(rule.max && !(value <= matcherRuleValue(rule.max)))
-      return Pattern.errors.invalidMaxValue(rule.max, value);
+      return new Pattern.errors.InvalidMaxValueError(rule.max, value);
     return true;
   },
 
   // Used when declaring nested patterns
   pattern: function(rule, value) {
     if(!_.isObject(value))
-      return Pattern.errors.invalidType('object', value);
+      return new Pattern.errors.InvalidTypeError('object', value);
     return rule.pattern.matches(value);
   },
 
   regexp: function(rule, value) {
     if(!_.isString(value))
-      return Pattern.errors.invalidType('string', value);
+      return new Pattern.errors.InvalidTypeError('string', value);
     let matched = matcherRuleValue(rule.regexp).test(value);
     if(!matched)
-      return Pattern.errors.invalidRegexp(rule.regexp, value);
+      return new Pattern.errors.InvalidRegexpError(rule.regexp, value);
+    return true;
+  },
+
+  object: function(rule, value) {
+    if(Object.prototype.toString.call(value) !== '[object Object]')
+      return new Pattern.errors.InvalidTypeError('object', value);
     return true;
   }
 };
